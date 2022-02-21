@@ -1,0 +1,45 @@
+# don't use things by default
+use_bayes 0
+bayes_auto_expire 0
+bayes_learn_to_journal 1
+
+[% IF pmg.spam.languages %]
+ok_languages [% pmg.spam.languages %]
+[% END %]
+
+envelope_sender_header X-Proxmox-Envelope-From
+
+# use fast lock (non-nfs save)
+lock_method flock
+
+[% IF !pmg.spam.rbl_checks %]
+skip_rbl_checks 1
+[% END %]
+
+[% IF pmg.spam.use_bayes.defined %]
+use_bayes [% pmg.spam.use_bayes %] 
+# ´central Bayes store
+bayes_store_module  Mail::SpamAssassin::BayesStore::SQL
+bayes_sql_dsn       DBI:mysql:sa_bayes:localhost
+bayes_sql_username sa_user
+bayes_sql_password SUPERGEHEIM
+bayes_sql_override_username sa_user
+[% END %]
+
+[% IF pmg.spam.bounce_score %]
+whitelist_bounce_relays [% composed.wl_bounce_relays %]
+score ANY_BOUNCE_MESSAGE [% pmg.spam.bounce_score %]
+[% END %]
+
+#Pyzor
+use_pyzor 1
+pyzor_options --homedir /etc/mail/spamassassin
+
+#DCC
+use_dcc 1
+dcc_timeout 8
+dcc_home /var/dcc/
+dcc_path /usr/local/bin/dccproc
+add_header all DCC _DCCB_: _DCCR_
+
+include /usr/share/spamassassin-extra/KAM.cf
