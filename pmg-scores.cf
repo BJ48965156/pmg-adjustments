@@ -100,4 +100,4 @@ score URIBL_RO_GREY 2.500
 # URI's listed in uribl.swinog.ch
 score URIBL_SC_SWINOG 5.000
 # Contains an domain listed in the ZapBL RHSBL blocklist
-score URIBL_ZAPBL 5.000
+score URIBL_ZAPBL 2.500
