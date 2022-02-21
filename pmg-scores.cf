@@ -1,0 +1,103 @@
+# Reduce Bayes Score
+score BAYES_00 -0.100
+# Distributed Checksum Clearinghouses
+score DCC_CHECK 1.100
+# DCC reputation between 90 and 94 %
+score DCC_REPUT_90_94 1.900
+# DCC reputation between 95 and 98 %  (mostly spam)
+score DCC_REPUT_95_98 2.900
+# DCC reputation between 99 % or higher (spam)
+score DCC_REPUT_99_100 3.900
+# DMARC Policy none
+score DMARC_NONE 0.100
+# DMARC Policy quarantine
+score DMARC_QUAR 10.000
+# DMARC Policy reject
+score DMARC_REJECT 10.000
+# From: sender listed in rhsbl.zapbl.net
+score ENVFROM_IN_ZAPBL 0.500
+# Is the From:name different to the From:addr header
+score FROMNAME_DIFFERENT 0.300
+# From:name domain differs to from header
+score FROMNAME_DOMAIN_DIFFER 0.300
+# Does From name contain an email address
+score FROMNAME_EMAIL 0.300
+# From:name address matches To:address
+score FROMNAME_EQUALS_TO 3.000
+# From:name and From:addr owners differ
+score FROMNAME_OWNERS_DIFFER 0.300
+# From:name and From:address don't match and owners differ
+score FROMNAME_SPOOF 0.300
+# Spam Source Networks, high volume of 0SPAM spam trap hits in a Class C block
+score NBL_0SPAM 2.500
+# Received via a relay in Abusix Mail Intelligence Black
+score RCVD_IN_AMI_BLACK 5.000
+# Received via a relay in Abusix Mail Intelligence Dynamic
+score RCVD_IN_AMI_DYN 5.000
+# Received via a relay in Abusix Mail Intelligence Exploit
+score RCVD_IN_AMI_EXPLOIT 5.000
+# Received via a relay in Abusix Mail Intelligence White
+score RCVD_IN_AMI_WHITE -3.000
+# Relay is listed in spam.dnsbl.anonmails.de
+score RCVD_IN_ANONMAILS 5.000
+# Average reputation (+2)
+score RCVD_IN_MSPIKE_H2 -0.500
+# Good reputation (+3)
+score RCVD_IN_MSPIKE_H3 -1.500
+# Very Good reputation (+4)
+score RCVD_IN_MSPIKE_H4 -2.500
+# Excellent reputation (+5)
+score RCVD_IN_MSPIKE_H5 -3.500
+# Suspicious reputation (-2)
+score RCVD_IN_MSPIKE_L2 0.800
+# Low reputation (-3)
+score RCVD_IN_MSPIKE_L3 3.900
+# Bad reputation (-4)
+score RCVD_IN_MSPIKE_L4 4.200
+# Very bad reputation (-5)
+score RCVD_IN_MSPIKE_L5 5.200
+# Spam wave participant
+score RCVD_IN_MSPIKE_ZBI 5.000
+# RCVD_IN_SEMNETBLACK Received from an IP listed by SEM-NETBLACK
+score RCVD_IN_SEMNETBLACK 5.000
+score RCVD_IN_UCEPROTECT1 5.000
+# Listed in dnsbl-2.uceprotect.net (open relay/proxy/dialup)
+score RCVD_IN_UCEPROTECT2 3.000
+# Network listed in dnsbl-3.uceprotect.net (bad networks)
+score RCVD_IN_UCEPROTECT3 2.500
+# Contains an 1x1 Tracking Pixel
+score RD_BODY_1X1TRACK 3.000
+# Contains an iframe TAG
+score RD_BODY_IFRAME 10.000
+# Contains a script TAG
+score RD_BODY_SCRIPT 10.000
+# (!) SEM_URIRED Contains a URI listed by SEM-URIRED
+score SEM_URIRED 2.500
+# NICHT NOTWENDIG - AUF MTA EBENDE
+score SPF_FAIL 0.000
+# NICHT NOTWENDIG - AUF MTA EBENE
+score SPF_HELO_NONE 0.000
+# Contains a spam URL listed in the 0spam domain blocklist
+score URIBL_0SPAM 5.000
+# Contains a spam URL listed in the Abusix Mail Intelligence domain blocklist
+score URIBL_AMI_DBLACK 5.000
+# Contains a domain listed in the Abusix Mail Intelligence domain whitelist
+score URIBL_AMI_WHITE -3.000
+# PRIVATE URIBL
+score URIBL_RD_BLACK 10.000
+# PRIVATE URIBL
+score URIBL_RD_GREY 2.500
+# PRIVATE URIBL
+score URIBL_RD_HOSTNAME_BLACK 10.000
+# PRIVATE URIBL
+score URIBL_RD_HOSTNAME_GREY 2.500
+# Contains a blacklisted domain
+score URIBL_RO_BLACK 5.000
+# Contains a dynamic dns domain
+score URIBL_RO_DYNDNS 2.500
+# Contains a greylisted domain
+score URIBL_RO_GREY 2.500
+# URI's listed in uribl.swinog.ch
+score URIBL_SC_SWINOG 5.000
+# Contains an domain listed in the ZapBL RHSBL blocklist
+score URIBL_ZAPBL 5.000
