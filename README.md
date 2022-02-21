@@ -4,7 +4,7 @@ Nachfolgend beschreibe ich meine Anpassungen für das Proxmox Mail Gateway.
 ## TODO
 - Anpassung der custom.cf (Anpassung der Listen und hinzufügen von META Regeln)
 - Hinzufügen weitere Virenscanner und failover Integration ins Cluster
-- Erstellung einer Software für das melden von SPAM und der ANpassung des Scorings
+- Erstellung einer Software für das melden von SPAM (Inkl. Learning und Scoring)
 - Erstellung einer Software für besseres Loggen der Postfix Verbindungen
 
 ## Mein Aufbau
