@@ -200,6 +200,155 @@ Mailspike.net siehe https://mailspike.org/usage.html
 
 die SH.pm von https://raw.githubusercontent.com/spamhaus/spamassassin-dqs/master/SH.pm muss im Ordner /etc/mail/spamassassin/ abgelegt werden, wenn Spamhaus Subscription existiert
 
+### Geteilte Bayes Datenbank
+
+Wer schon eine Bayes-Datenbank gepflegt hat, sollte diese vorher sichern mit
+
+```
+sa-learn --backup > /root/bayes.db
+```
+
+####Auf allen Servern:
+
+```
+apt install libdbd-mysql-perl mariadb-server libtie-cache-perl libdbd-mysql-perl
+mysql_secure_installation
+nano /etc/mysql/conf.d/galera.cnf
+```
+
+Dort dann, angepasst an den entsprechenden Node (!) folgendes eintragen:
+
+```
+[mysqld]
+binlog_format=ROW
+default-storage-engine=innodb
+innodb_autoinc_lock_mode=2
+bind-address=192.168.0.1
+# Galera Provider Configuration
+wsrep_on=ON
+wsrep_provider=/usr/lib/galera/libgalera_smm.so
+# Galera Cluster Configuration
+wsrep_cluster_name="galera_cluster"
+wsrep_cluster_address="gcomm://192.168.0.1,192.168.0.2,192.168.0.3"
+
+# Galera Synchronization Configuration
+wsrep_sst_method=rsync
+
+# Galera Node Configuration IP und Name des Nodes auf dem diese Datei liegt!
+wsrep_node_address="SERVER-IP-INTERN"
+wsrep_node_name="SERVERNAME"
+```
+
+Dann einmal mysql neustarten.
+
+```
+systemctl restart mysql
+```
+
+Ob es erfolgreich war kann man wie folgt prüfen:
+
+```
+mysql -u root -p -e "show status like 'wsrep_cluster_size'"
+```
+
+Es sollte dann bei 3 Server folgendes angezeigt werden:
+
+```
++--------------------+-------+
+| Variable_name      | Value |
++--------------------+-------+
+| wsrep_cluster_size | 3     |
++--------------------+-------+
+```
+
+Bei mehr Server entsprechend dann anstatt 3 die Anzahl der Server.
+
+####Nur auf auf einem Server
+
+(z.B. master) dann noch den spamassassin Benutzer und die Datenbank anlegen:
+
+```
+mysqladmin -p create sa_bayes -u root
+mysql -p
+grant all privileges on sa_bayes.* to sa_user@localhost identified by 'SUPERGEHEIM';
+use sa_bayes;
+```
+
+Die mysqlcli noch nicht beenden, sondern noch die benötigten Tabellen erstellen. Leider habe ich auf dem Server die Datei bayes_mysql.sql nicht gefunden. Daher habe ich die von hier genommen: https://fossies.org/linux/misc/Mail-SpamAssassin-3.4.6.tar.bz2/Mail-SpamAssassin-3.4.6/sql/bayes_mysql.sql?m=t
+
+Jetzt kann der mysqlcli beendet und die vielleicht vorher gesicherte Bayes-Datenbank geladen werden:
+
+Zuvor muss die SpamAssassin Konfiguration auf die MySQL-Datenbak zeigen. Wie die aussehen muss steht unter "SpamAssassin Erweiterungen"
+
+```
+sa-learn --restore /root/bayes.db
+```
+
+Am besten über die Console ausführen, je nach Datenbestand dauert das einige Stunden.
+
+Wenn autolearn aktiv ist (müsste standardmäßig sein), werden alle Mails mit Score < 0.1 als ham und Score > 12 als spam eingelernt. Zu der Bedingung Score >12 gilt sich noch, dass mindestens 3 Punkte aus dem Header kommen müssen und 3 Punkte aus dem Body. Also nicht wundern wenn mal mails einen Score von 20 haben aber nicht als spam gelernt wurden. Dann ist meist der Score vom Body < 3.
+
+EDIT: Um die lokale Verbindung zum MariaDB Server zu beschleunigen, kann in der local.cf.in (siehe /etc/pmg/templates/) direkt die .sock file angegeben werden. Dafür den Eintrag bayes_sql_dsn anpassen:
+
+```
+bayes_sql_dsn       DBI:mysql:database=sa_bayes;mysql_socket=/run/mysqld/mysqld.sock
+```
+
+### Geteilte AWL Datenbank
+Ich gehe davon aus, das das MariaDB-Cluster eingerichtet ist. Ansonsten einmal unter "Geteilte Bayes Datenbank" nachschauen. Am master Server muss noch der Event Scheduler aktiviert werden. Dafür in der Datei /etc/mysql/mariadb.conf.d/50-server.cnf 
+
+```
+event_scheduler=ON
+```
+
+in der Sektion [mysqld] ergänzen und dann den MySQL Server neustarten.
+
+Dann einmal den mysql-client starten und folgende Befehle ausführen:
+
+```
+CREATE TABLE awl (
+  username varchar(100) NOT NULL default '',
+  email varchar(255) NOT NULL default '',
+  ip varchar(40) NOT NULL default '',
+  msgcount int(11) NOT NULL default '0',
+  totscore float NOT NULL default '0',
+  signedby varchar(255) NOT NULL default '',
+  PRIMARY KEY (username,email,signedby,ip)
+) ENGINE=InnoDB;;
+```
+
+Die Tabelle stammt von hier https://svn.apache.org/repos/asf/spamassassin/trunk/sql/README.awl allerdings musste ich die Datenbankengine anpassen. MyISAM funktioniert im Cluster nicht. Weiterhin löscht spamassassin wohl nicht automatisch aus der Tabelle. Darum müssen wir diese erweitern um später mit Hilfe von Events die Tabelle zu bereinigen.
+
+Erweitert die Tabelle um einen Zeitstempel, der automatisch aktualisiert wird bei jedem Update: 
+
+Code:
+ALTER TABLE awl ADD lastupdate timestamp default CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+
+Ergänze zwei Events um die Tabelle zu bereinigen. Zum einen werden alle Einträge gelöscht, die seid 6 Monaten nicht aktualisiert wurden und zum anderen werden alle Einträge gelöscht, wo vom Absender bisher nur eine E-Mail gesendet wurde und der Eintrag älter als 1 Monat ist.
+
+```
+CREATE EVENT awl_clean
+ON SCHEDULE EVERY 1 DAY
+STARTS '2022-01-18 00:00:00'
+DO
+DELETE FROM awl WHERE lastupdate <= DATE_SUB(SYSDATE(), INTERVAL 6 MONTH);
+CREATE EVENT awl_onemail_clean
+ON SCHEDULE EVERY 1 DAY
+STARTS '2022-01-18 00:00:00'
+DO
+DELETE FROM awl WHERE msgcount = 1 AND lastupdate <= DATE_SUB(SYSDATE(), INTERVAL 1 MONTH);
+```
+
+Danach muss die Datei local.cf.in (siehe /etc/pmg/templates/) vor dem include erweitert werden mit:
+
+```
+#AWL Cluster
+auto_whitelist_factory Mail::SpamAssassin::SQLBasedAddrList
+user_awl_dsn                 DBI:mysql:database=sa_bayes;mysql_socket=/run/mysqld/mysqld.sock
+user_awl_sql_username        sa_user
+user_awl_sql_password        SUPERGEHEIM
+```
+
 ## PMG
 
 ### E-Mails blocken und in Quarantäne speichern
@@ -226,3 +375,108 @@ sub final {
 ```
 
 Meh dazu unter https://forum.proxmox.com/threads/before-queue-filtering-block-quarantine-save-a-copy-of-blocked-email.98846/#post-444072
+
+### Tracking Center - Alle Logs zentral
+
+Nur auf dem Master. Dann kann man dort im WebGUI E-Mails aus allen Nodes sehen.
+
+```
+mv /usr/bin/pmg-log-tracker /usr/bin/pmg-log-tracker-local
+touch /usr/bin/pmg-log-tracker
+chmod +x /usr/bin/pmg-log-tracker
+nano /usr/bin/pmg-log-tracker
+```
+
+Und da dann
+
+```
+/usr/bin/pmg-log-tracker-local "$@" | head -n -1
+ssh -o ConnectTimeout=2 -o ConnectionAttempts=1 root@192.168.0.2 /usr/bin/pmg-log-tracker "$@" | sed '/^#/ d'
+ssh -o ConnectTimeout=2 -o ConnectionAttempts=1 root@192.168.0.3 /usr/bin/pmg-log-tracker "$@" | sed '/^#/ d'
+```
+
+Einfügen. Danke an Sommer https://forum.proxmox.com/threads/tracking-center-not-in-sync.41903/#post-216707 und JoshuaSign https://forum.proxmox.com/threads/tracking-center-not-in-sync.41903/page-2#post-281834
+
+## ClamAV
+
+ClamAV wird um Signaturen erweitert mit Hilfe einen Skriptes, welches die Signaturen herunterlädt. Mehr dazu unter https://github.com/extremeshok/clamav-unofficial-sigs
+
+####Auf allen Servern:
+
+```
+apt-get purge -y clamav-unofficial-sigs
+mkdir -p /usr/local/sbin/
+wget https://raw.githubusercontent.com/extremeshok/clamav-unofficial-sigs/master/clamav-unofficial-sigs.sh -O /usr/local/sbin/clamav-unofficial-sigs.sh && chmod 755 /usr/local/sbin/clamav-unofficial-sigs.sh
+mkdir -p /etc/clamav-unofficial-sigs/
+```
+
+####Auf dem Master:
+
+Die 3 Konfigurationsdateien (master.conf os.conf user.conf) wie im Link beschrieben herunterladen und ggf. anpassen. Auch hier kann man Subscriptions hinterlegen für die diversen Anbieter.
+
+####Auf den Nodes:
+
+```
+scp -r root@192.168.0.1:/etc/clamav-unofficial-sigs/* /etc/clamav-unofficial-sigs/
+```
+
+####Wieder auf allen:
+
+```
+/usr/local/sbin/clamav-unofficial-sigs.sh --force
+/usr/local/sbin/clamav-unofficial-sigs.sh --install-logrotate
+/usr/local/sbin/clamav-unofficial-sigs.sh --install-cron
+```
+
+## Postfix
+
+Leider ist die RegEx Prüfung für DNSBL Seiten recht restriktiv im WebGUI und postscreen kann auch nur IPs gegen DNSBLs prüfen. Daher passe ich das Template /etc/pmg/templates/main.cf.in an indem ich smtpd_sender_restrictions erweiter und rbl_reply_maps hinzufüge um meine privaten Schlüssel zu maskieren:
+
+```
+smtpd_sender_restrictions =
+        permit_mynetworks
+        reject_non_fqdn_sender
+        check_client_access     cidr:/etc/postfix/clientaccess
+        check_sender_access     regexp:/etc/postfix/senderaccess
+        check_recipient_access  regexp:/etc/postfix/rcptaccess
+[%- IF pmg.mail.rejectunknown %] reject_unknown_client_hostname[% END %]
+[%- IF pmg.mail.rejectunknownsender %] reject_unknown_sender_domain[% END %]
+        reject_rhsbl_sender         PRIVATEKEY.dbl.dq.spamhaus.net=127.0.1.[2..99]
+        reject_rhsbl_helo           PRIVATEKEY.dbl.dq.spamhaus.net=127.0.1.[2..99]
+        reject_rhsbl_reverse_client PRIVATEKEY.dbl.dq.spamhaus.net=127.0.1.[2..99]
+        reject_rhsbl_sender         PRIVATEKEY.zrd.dq.spamhaus.net=127.0.2.[2..24]
+        reject_rhsbl_helo           PRIVATEKEY.zrd.dq.spamhaus.net=127.0.2.[2..24]
+        reject_rhsbl_reverse_client PRIVATEKEY.zrd.dq.spamhaus.net=127.0.2.[2..24]
+        reject_rhsbl_client         PRIVATEKEY.dblack.mail.abusix.zone
+        reject_rhsbl_helo           PRIVATEKEY.dblack.mail.abusix.zone
+        reject_rhsbl_sender         PRIVATEKEY.dblack.mail.abusix.zone
+        reject_rhsbl_sender         dbl.abuse.ro
+        permit_dnswl_client         list.dnswl.org=127.0.[0..255].[1..3]
+        permit_dnswl_client         PRIVATEKEY.white.mail.abusix.zone
+        permit_dnswl_client         ips.whitelisted.org
+        permit_dnswl_client         wl.mailspike.net=127.0.0.[18..20]
+        reject_rbl_client           PRIVATEKEY.zen.dq.spamhaus.net=127.0.0.[2..255]
+        reject_rbl_client           PRIVATEKEY.combined.mail.abusix.zone
+        reject_rbl_client           b.barracudacentral.org
+        reject_rbl_client           dnsbl-1.uceprotect.net
+        reject_rbl_client           rbl.abuse.ro
+        reject_rbl_client           bl.0spam.org
+        reject_rbl_client           bl.mailspike.net
+
+rbl_reply_maps = texthash:/etc/postfix/rbl-reply-map
+```
+
+Als erstes efolgen RHSBL checks. Danach werden IPs von Whitelits zugelassen. Zum Schluss wird gegen RBL geprüft. Sender auf Whitelisten sollten nicht auf MTA Level geblockt werden, da sie in der Regel kein SPAM versenden. Die komemrziellen Listen die ich zuerst verwende sollten normalerweise Sorge tragen, dass whitelisted systeme dort nicht auftauchen.
+
+rbl-reply-map:
+
+```
+PRIVATEKEY.sbl.dq.spamhaus.net=127.0.0.[2..255]      $rbl_code Service unavailable; $rbl_class [$rbl_what] blocked using sbl.spamhaus.org${rbl_reason?; $rbl_reason}
+PRIVATEKEY.xbl.dq.spamhaus.net=127.0.0.[2..255]      $rbl_code Service unavailable; $rbl_class [$rbl_what] blocked using xbl.spamhaus.org${rbl_reason?; $rbl_reason}
+PRIVATEKEY.pbl.dq.spamhaus.net=127.0.0.[2..255]      $rbl_code Service unavailable; $rbl_class [$rbl_what] blocked using pbl.spamhaus.org${rbl_reason?; $rbl_reason}
+PRIVATEKEY.sbl-xbl.dq.spamhaus.net=127.0.0.[2..255]  $rbl_code Service unavailable; $rbl_class [$rbl_what] blocked using sbl-xbl.spamhaus.org${rbl_reason?; $rbl_reason}
+PRIVATEKEY.zen.dq.spamhaus.net=127.0.0.[2..255]      $rbl_code Service unavailable; $rbl_class [$rbl_what] blocked using zen.spamhaus.org${rbl_reason?; $rbl_reason}
+PRIVATEKEY.dbl.dq.spamhaus.net=127.0.1.[2..99]       $rbl_code Service unavailable; $rbl_class [$rbl_what] blocked using dbl.spamhaus.org${rbl_reason?; $rbl_reason}
+PRIVATEKEY.zrd.dq.spamhaus.net=127.0.2.[2..24]       $rbl_code Service unavailable; $rbl_class [$rbl_what] blocked using zrd.spamhaus.org${rbl_reason?; $rbl_reason}
+PRIVATEKEY.combined.mail.abusix.zone           $rbl_code Service unavailable; $rbl_class [$rbl_what] blocked using Abusix Mail Intelligence${rbl_reason?; $rbl_reason}
+PRIVATEKEY.dblack.mail.abusix.zone             $rbl_code Service unavailable; $rbl_class [$rbl_what] blocked using Abusix Mail Intelligence${rbl_reason?; $rbl_reason}
