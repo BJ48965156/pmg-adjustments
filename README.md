@@ -82,6 +82,14 @@ chmod +x /etc/cron.hourly/sa-update
 
 Und die GPG Keys aus der Anleitung am Master importieren!
 
+#### Erweiterungen
+
+Falls Spamhaus Subscription existiert
+
+```
+scp -r root@192.168.0.1:/etc/mail/spamassassin/SH.pm /etc/mail/spamassassin/
+```
+
 ## SpamAssassin Anpassungen
 
 ### Channels und Beschleunigung
@@ -155,3 +163,66 @@ fi
 Der Channel sought.rules.yerp.org wurde eingestellt. Die Channel spamassassin.heinlein-support.de und sa.schaal-it.net werden wohl nicht mehr so regelmäßig gepflegt.
 Malware Patrol bietet auch noch einen kommerziellen Channel https://www.malwarepatrol.net/spamassassin-configuration-guide/
 Noch mehr Infos zu Channel gibt es hier https://cwiki.apache.org/confluence...le?contentId=119542298#content/view/119542298
+
+### Erweiterungen
+
+```
+apt install pyzor
+cd /tmp
+wget https://www.dcc-servers.net/dcc/source/dcc.tar.Z
+tar xfvz dcc.tar.Z
+cd dccXXX
+./configure && make && make install
+```
+
+Infos zu pyzor unter https://www.pyzor.org/en/latest/
+Infos zu DCC unter https://www.dcc-servers.net/dcc/
+
+Bitte Bedingungen und Lizenzen berücksichtigen.
+
+#### Nur am Master
+
+Nicht gewünschte Module einfach aus der custom.cf entfernen. Ein Modul beginnt bei dem Kommentar und endet vor dem nächsten Kommentar. Bei dem Spamhaus Plugin muss jeder Eintrag mit PRIVATEKEY noch durch den subscription Key ersetzt werden.
+
+Datei /etc/mail/spamassassin/custom.cf siehe Anhang custom.cf.txt
+Datei /etc/pmg/templates/v320.pre.in siehe Anhang v320.pre.in.txt
+Datei /etc/pmg/templates/local.cf.in siehe Anhang local.cf.in.txt
+
+Zur local.cf.in:
+Alles unter dem Kommentar # central Bayes store bis zum [% END %] ist nur nötig, wenn die gleiche Bayes Datenbank auf allen Servern genutzt werden soll
+
+Pyzor und DCC siehe oben
+OLEVBMacro siehe https://spamassassin.apache.org/full/3.4.x/doc/Mail_SpamAssassin_Plugin_OLEVBMacro.txt
+FromNameSpoof siehe https://spamassassin.apache.org/full/3.4.x/doc/Mail_SpamAssassin_Plugin_FromNameSpoof.txt
+Spamhaus siehe https://github.com/spamhaus/spamassassin-dqs
+DMARC siehe https://notes.sagredo.eu/setting-dmarc-filter-in-spamassassin-236.html und https://random.sphere.ro/2019/08/12/dmarc-on-spamassassin/
+Mailspike.net siehe https://mailspike.org/usage.html
+
+die SH.pm von https://raw.githubusercontent.com/spamhaus/spamassassin-dqs/master/SH.pm muss im Ordner /etc/mail/spamassassin/ abgelegt werden, wenn Spamhaus Subscription existiert
+
+## PMG
+
+### E-Mails blocken und in Quarantäne speichern
+Bei der vorherigen Eingesetzen Lösung wurden auch E-Mails, die in der Quarantäne abgelegt wurden, vom Mailserver abgelehnt. Ich persönlich finde die Lösung sinnvoll und habe daher eine Anpassung vorgenommen. Im Tracking Center werden dann immer E-Mails 2x angezeigt, einmal mit Quarantäne und einmal mit Block. des Weiteren sollte das System soweit optimiert sein, dass E-Mails schnell verarbeitet werden. Zu lange SMTP-Transaktionen können Probleme verursachen.
+
+1. Before Queue Filter aktivieren
+2. Mail Filter Rules anpassen. Jede Regel mit Aktion "Quarantäne" muss kopiert werden mit geringere Priorität und "Block" als Aktion.
+3. Auf allen Servern /usr/share/perl5/PMG/RuleDB/Quarantine.pm anpassen.
+
+Ändern
+
+```
+sub final {
+    return 1;
+}
+```
+
+Zu
+
+```
+sub final {
+    return 0;
+}
+```
+
+Meh dazu unter https://forum.proxmox.com/threads/before-queue-filtering-block-quarantine-save-a-copy-of-blocked-email.98846/#post-444072
