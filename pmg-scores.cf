@@ -66,7 +66,7 @@ score RCVD_IN_UCEPROTECT2 3.000
 # Network listed in dnsbl-3.uceprotect.net (bad networks)
 score RCVD_IN_UCEPROTECT3 2.500
 # Contains an 1x1 Tracking Pixel
-score RD_BODY_1X1TRACK 3.000
+score RD_BODY_1X1TRACK 2.000
 # Contains an iframe TAG
 score RD_BODY_IFRAME 10.000
 # Contains a script TAG
@@ -100,4 +100,4 @@ score URIBL_RO_GREY 2.500
 # URI's listed in uribl.swinog.ch
 score URIBL_SC_SWINOG 5.000
 # Contains an domain listed in the ZapBL RHSBL blocklist
-score URIBL_ZAPBL 2.500
+score URIBL_ZAPBL 1.500
