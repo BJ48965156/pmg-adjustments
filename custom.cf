@@ -465,7 +465,7 @@ body            URIBL_RD_GREY              eval:check_uridnsbl('URIBL_RD_GREY')
 describe        URIBL_RD_GREY              Contains a URL listed in the PRIVATE greylist
 tflags          URIBL_RD_GREY              net domains_only
 
-rawbody         RD_BODY_1X1TRACK           /(?s)<img[^>]*?(width|height)[^>]*?([0-9]("|'| ))[^>]*?(width|height)[^>]*?([0-9]("|'| )).*?>/i
+rawbody         RD_BODY_1X1TRACK           /(?s)<img[^>]*?(width|height)[^>]*?(("|'| |=)[0-9]("|'| ))[^>]*?(width|height)[^>]*?(("|'| |=)[0-9]("|'| )).*?>/i
 describe        RD_BODY_1X1TRACK           Contains an Image from 1x1 until 9x9 Pixels
 
 rawbody         RD_BODY_IFRAME             /(?s)<iframe.*?>/i
