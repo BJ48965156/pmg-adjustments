@@ -455,12 +455,12 @@ describe        URIBL_RD_HOSTNAME_BLACK    Contains a URL listed in the PRIVATE 
 body            URIBL_RD_HOSTNAME_GREY     eval:check_sh_hostname('XXX', '^127\.0\.0\.3')
 describe        URIBL_RD_HOSTNAME_GREY     Contains a URL listed in the PRIVATE greylist
 
-urirhssub       URIBL_RD_BLACK             uribl.redacion.de. A 127.0.0.4
+urirhssub       URIBL_RD_BLACK             XXX. A 127.0.0.4
 body            URIBL_RD_BLACK             eval:check_uridnsbl('URIBL_RD_BLACK')
 describe        URIBL_RD_BLACK             Contains a URL listed in the PRIVATE blacklist
 tflags          URIBL_RD_BLACK             net domains_only
 
-urirhssub       URIBL_RD_GREY              uribl.redacion.de. A 127.0.0.3
+urirhssub       URIBL_RD_GREY              XXX. A 127.0.0.3
 body            URIBL_RD_GREY              eval:check_uridnsbl('URIBL_RD_GREY')
 describe        URIBL_RD_GREY              Contains a URL listed in the PRIVATE greylist
 tflags          URIBL_RD_GREY              net domains_only
